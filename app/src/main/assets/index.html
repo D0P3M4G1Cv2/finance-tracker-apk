@@ -1,6 +1,237 @@
 <!DOCTYPE html>
 <html lang="ru">
+<head><!DOCTYPE html>
+<html lang="ru">
 <head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Финансовый отчет</title>
+<style>
+:root { --bg-color:#121212; --card-bg:#1e1e1e; --text-main:#ffffff; --text-muted:#9e9e9e; --accent:#bb86fc; --danger:#ff5252; --border:#2c2c2c; }
+* { box-sizing:border-box; margin:0; padding:0; -webkit-tap-highlight-color:transparent; }
+body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background-color:var(--bg-color); color:var(--text-main); padding:16px 16px 60px; max-width:600px; margin:0 auto; }
+header { margin-bottom:20px; padding-bottom:12px; border-bottom:1px solid var(--border); }
+.month-nav { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+h1 { font-size:20px; font-weight:700; text-align:center; flex:1; cursor:pointer; }
+.nav-btn { background-color:var(--card-bg); color:var(--text-main); border:1px solid var(--border); border-radius:8px; width:36px; height:36px; font-size:18px; font-weight:700; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+.summary-row { display:flex; justify-content:space-between; align-items:center; font-size:16px; color:var(--text-muted); }
+.grand-total { color:var(--accent); font-weight:700; font-size:18px; }
+.section-card { background-color:var(--card-bg); border-radius:12px; padding:14px; margin-bottom:14px; border:1px solid var(--border); }
+.section-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; }
+.section-title { font-size:16px; font-weight:600; color:var(--text-main); cursor:pointer; padding:4px 0; }
+.section-stats { font-size:15px; font-weight:700; white-space:nowrap; color:var(--text-main); cursor:pointer; padding:4px 8px; border-radius:6px; background-color:rgba(255,255,255,0.04); border:1px dashed rgba(255,255,255,0.15); }
+.over-limit { color:var(--danger); border-color:rgba(255,82,82,0.4); }
+.entries-list { list-style:none; margin-bottom:10px; padding-left:2px; }
+.entry-item { display:flex; justify-content:space-between; align-items:center; padding:4px 0; font-size:15px; border-bottom:1px dashed rgba(255,255,255,0.05); }
+.entry-item:last-child { border-bottom:none; }
+.delete-btn { background:none; border:none; color:var(--text-muted); font-size:16px; padding:2px 8px; cursor:pointer; }
+.input-group { display:flex; gap:8px; margin-top:8px; }
+.expense-input { flex:1; background-color:#141414; border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text-main); font-size:14px; outline:none; }
+.add-btn { background-color:var(--accent); color:#000; border:none; border-radius:8px; padding:0 16px; font-weight:700; font-size:18px; cursor:pointer; }
+.toolbar { display:flex; gap:10px; margin-top:24px; flex-wrap:wrap; }
+.tool-btn { flex:1; min-width:140px; background-color:var(--card-bg); color:var(--text-muted); border:1px solid var(--border); border-radius:8px; padding:10px; font-size:13px; cursor:pointer; }
+.modal-overlay { position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.75); display:none; align-items:center; justify-content:center; z-index:1000; padding:16px; }
+.modal-overlay.active { display:flex; }
+.modal-box { background:var(--card-bg); border:1px solid var(--border); border-radius:14px; padding:18px; width:100%; max-width:340px; max-height:85vh; overflow-y:auto; }
+.modal-title { font-size:17px; font-weight:700; margin-bottom:14px; }
+.modal-label { display:block; font-size:13px; color:var(--text-muted); margin-bottom:6px; }
+.modal-input { width:100%; background:#141414; border:1px solid var(--border); border-radius:8px; padding:10px 12px; color:var(--text-main); font-size:16px; margin-bottom:14px; outline:none; }
+.modal-actions { display:flex; justify-content:flex-end; gap:10px; }
+.modal-btn { padding:10px 16px; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; border:none; }
+.modal-btn.cancel { background:transparent; color:var(--text-muted); border:1px solid var(--border); }
+.modal-btn.save { background:var(--accent); color:#000; }
+.month-list-item { display:flex; justify-content:space-between; padding:10px 12px; border-radius:8px; margin-bottom:6px; background:#141414; border:1px solid var(--border); cursor:pointer; font-size:14px; }
+.month-list-item.current { border-color:var(--accent); font-weight:700; }
+</style>
+</head>
+<body>
+<header>
+  <div class="month-nav">
+    <button class="nav-btn" onclick="changeMonth(-1)">‹</button>
+    <h1 id="reportTitle" onclick="openHistoryModal()">Финансовый отчет</h1>
+    <button class="nav-btn" onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="summary-row">
+    <span>Всего потрачено:</span>
+    <span class="grand-total" id="grandTotal">0 ₽</span>
+  </div>
+</header>
+<main id="sectionsContainer"></main>
+<div class="toolbar">
+  <button class="tool-btn" onclick="openNewSectionModal()">+ Новый раздел</button>
+  <button class="tool-btn" onclick="openHistoryModal()">Архив месяцев</button>
+  <button class="tool-btn" onclick="openResetModal()">Сбросить месяц</button>
+</div>
+<div class="modal-overlay" id="editModal" onclick="if(event.target===this) closeModal()">
+  <div class="modal-box">
+    <div class="modal-title" id="modalHeading">Изменить лимит</div>
+    <div id="titleFieldWrapper"><label class="modal-label">Название раздела</label><input type="text" id="modalTitleInput" class="modal-input"></div>
+    <div id="limitFieldWrapper"><label class="modal-label">Лимит расходов (₽)</label><input type="number" inputmode="numeric" id="modalLimitInput" class="modal-input"></div>
+    <div id="historyListWrapper" style="display:none; margin-bottom:14px;"></div>
+    <div class="modal-actions">
+      <button class="modal-btn cancel" onclick="closeModal()">Закрыть</button>
+      <button class="modal-btn save" id="modalSaveBtn">Сохранить</button>
+    </div>
+  </div>
+</div>
+<script>
+const MONTH_NAMES = ["январь","февраль","март","апрель","май","июнь","июль","август","сентябрь","октябрь","ноябрь","декабрь"];
+const OCTOBER_DEFAULT_DATA = [
+  { id:1, title:"Расходы на еду", limit:15000, entries:[252,1578,239,171,268,199,143,169,897,169,539,5689,839,174,356,59,1209].map(a=>({amount:a,note:""})) },
+  { id:2, title:"Питание вне дома", limit:8000, entries:[] },
+  { id:3, title:"Еда на работе", limit:3000, entries:[116,69,59,239,144,289,98,44,95,59,73,162,100,200,141,89,77].map(a=>({amount:a,note:""})) },
+  { id:4, title:"Транспортные расходы / Такси", limit:2900, entries:[] },
+  { id:5, title:"Различные траты / Прочее", limit:10000, entries:[400,404,300,799,259].map(a=>({amount:a,note:""})) },
+  { id:6, title:"Расходы на досуг и развлечения", limit:14000, entries:[790,4500,530,539,770,2200].map(a=>({amount:a,note:""})) },
+  { id:7, title:"Затраты на свидания", limit:3000, entries:[] },
+  { id:8, title:"Крупные покупки и обязательства", limit:null, entries:[{amount:10000,note:"отпуск"},{amount:3750,note:"еда"},{amount:3750,note:"хата"},{amount:2000,note:"маме"}] }
+];
+function getRealYearMonth() { const now=new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`; }
+function createCleanTemplate(src) { return (src||OCTOBER_DEFAULT_DATA).map(s=>({id:s.id,title:s.title,limit:s.limit,entries:[]})); }
+let db = null;
+try { db = JSON.parse(localStorage.getItem("expense_db_v2")); } catch(e) { db = null; }
+const currentRealYM = getRealYearMonth();
+if (!db || !db.months) {
+  db = { months: {} };
+  db.months["2026-10"] = JSON.parse(JSON.stringify(OCTOBER_DEFAULT_DATA));
+}
+if (!db.months[currentRealYM]) {
+  const keys = Object.keys(db.months).sort();
+  db.months[currentRealYM] = createCleanTemplate(db.months[keys[keys.length-1]]);
+}
+let activeYM = currentRealYM;
+function ensureMonthExists(ym) {
+  if (!db.months[ym]) {
+    const keys = Object.keys(db.months).sort();
+    db.months[ym] = createCleanTemplate(db.months[keys[keys.length-1]]);
+  }
+}
+function getActiveSections() { ensureMonthExists(activeYM); return db.months[activeYM]; }
+function saveData() { try { localStorage.setItem("expense_db_v2", JSON.stringify(db)); } catch(e) {} render(); }
+function formatNum(n) { return n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+function changeMonth(delta) {
+  let [y, m] = activeYM.split("-").map(Number);
+  m += delta;
+  if (m < 1) { m = 12; y -= 1; }
+  if (m > 12) { m = 1; y += 1; }
+  activeYM = `${y}-${String(m).padStart(2,"0")}`;
+  ensureMonthExists(activeYM);
+  saveData();
+}
+function addExpense(sectionId) {
+  const el = document.getElementById(`input-${sectionId}`);
+  if (!el || !el.value.trim()) return;
+  const match = el.value.trim().match(/^([0-9]+(?:[.,][0-9]+)?)\s*(.*)$/);
+  if (!match) return;
+  const amount = Math.round(parseFloat(match[1].replace(",",".")));
+  if (isNaN(amount)) return;
+  const sec = getActiveSections().find(s => s.id === sectionId);
+  if (sec) { sec.entries.push({ amount, note: match[2] || "" }); el.value = ""; saveData(); }
+}
+function deleteExpense(sectionId, idx) {
+  const sec = getActiveSections().find(s => s.id === sectionId);
+  if (sec) { sec.entries.splice(idx, 1); saveData(); }
+}
+function resetModalViews() {
+  document.getElementById("titleFieldWrapper").style.display = "none";
+  document.getElementById("limitFieldWrapper").style.display = "none";
+  document.getElementById("historyListWrapper").style.display = "none";
+  document.getElementById("modalSaveBtn").style.display = "inline-block";
+}
+function closeModal() { document.getElementById("editModal").classList.remove("active"); }
+function openLimitModal(sectionId) {
+  const sec = getActiveSections().find(s => s.id === sectionId);
+  if (!sec) return;
+  resetModalViews();
+  document.getElementById("modalHeading").textContent = `Лимит: ${sec.title}`;
+  document.getElementById("limitFieldWrapper").style.display = "block";
+  const inp = document.getElementById("modalLimitInput");
+  inp.value = sec.limit !== null ? sec.limit : "";
+  document.getElementById("modalSaveBtn").onclick = () => {
+    const val = parseInt(inp.value.replace(/\s+/g,""), 10);
+    sec.limit = isNaN(val) || val <= 0 ? null : val;
+    closeModal(); saveData();
+  };
+  document.getElementById("editModal").classList.add("active");
+}
+function openTitleModal(sectionId) {
+  const sec = getActiveSections().find(s => s.id === sectionId);
+  if (!sec) return;
+  resetModalViews();
+  document.getElementById("modalHeading").textContent = "Настройки раздела";
+  document.getElementById("titleFieldWrapper").style.display = "block";
+  document.getElementById("limitFieldWrapper").style.display = "block";
+  const ti = document.getElementById("modalTitleInput"), li = document.getElementById("modalLimitInput");
+  ti.value = sec.title; li.value = sec.limit !== null ? sec.limit : "";
+  document.getElementById("modalSaveBtn").onclick = () => {
+    if (ti.value.trim()) sec.title = ti.value.trim();
+    const val = parseInt(li.value.replace(/\s+/g,""), 10);
+    sec.limit = isNaN(val) || val <= 0 ? null : val;
+    closeModal(); saveData();
+  };
+  document.getElementById("editModal").classList.add("active");
+}
+function openNewSectionModal() {
+  resetModalViews();
+  document.getElementById("modalHeading").textContent = "Новый раздел";
+  document.getElementById("titleFieldWrapper").style.display = "block";
+  document.getElementById("limitFieldWrapper").style.display = "block";
+  const ti = document.getElementById("modalTitleInput"), li = document.getElementById("modalLimitInput");
+  ti.value = ""; li.value = "";
+  document.getElementById("modalSaveBtn").onclick = () => {
+    if (!ti.value.trim()) return;
+    const val = parseInt(li.value.replace(/\s+/g,""), 10);
+    getActiveSections().push({ id: Date.now(), title: ti.value.trim(), limit: isNaN(val) || val <= 0 ? null : val, entries: [] });
+    closeModal(); saveData();
+  };
+  document.getElementById("editModal").classList.add("active");
+}
+function openHistoryModal() {
+  resetModalViews();
+  document.getElementById("modalHeading").textContent = "Архив по месяцам";
+  const lw = document.getElementById("historyListWrapper");
+  lw.style.display = "block";
+  document.getElementById("modalSaveBtn").style.display = "none";
+  lw.innerHTML = Object.keys(db.months).sort().reverse().map(ym => {
+    const sum = db.months[ym].reduce((a,s) => a + s.entries.reduce((x,e) => x + e.amount, 0), 0);
+    const [y,m] = ym.split("-").map(Number);
+    return `<div class="month-list-item ${ym===activeYM?'current':''}" onclick="activeYM='${ym}';closeModal();saveData();"><span style="text-transform:capitalize;">${MONTH_NAMES[m-1]} ${y}</span><span>${formatNum(sum)} ₽</span></div>`;
+  }).join("");
+  document.getElementById("editModal").classList.add("active");
+}
+function openResetModal() {
+  resetModalViews();
+  const isOct = activeYM.endsWith("-10");
+  document.getElementById("modalHeading").textContent = isOct ? "Вернуть октябрьские траты к исходной заметке?" : "Очистить все записи за этот месяц?";
+  document.getElementById("modalSaveBtn").onclick = () => {
+    db.months[activeYM] = isOct ? JSON.parse(JSON.stringify(OCTOBER_DEFAULT_DATA)) : createCleanTemplate(getActiveSections());
+    closeModal(); saveData();
+  };
+  document.getElementById("editModal").classList.add("active");
+}
+function render() {
+  const [y,m] = activeYM.split("-").map(Number);
+  document.getElementById("reportTitle").textContent = `Финансовый отчет за ${MONTH_NAMES[m-1]}`;
+  const container = document.getElementById("sectionsContainer");
+  container.innerHTML = "";
+  let grandTotal = 0;
+  getActiveSections().forEach(sec => {
+    const total = sec.entries.reduce((sum, item) => sum + item.amount, 0);
+    grandTotal += total;
+    const isOver = sec.limit !== null && total >= sec.limit;
+    const limitText = sec.limit !== null ? ` / ${formatNum(sec.limit)}` : "";
+    const entriesHtml = sec.entries.map((entry, idx) => `<li class="entry-item"><span>${entry.note ? formatNum(entry.amount)+' — '+entry.note : formatNum(entry.amount)}</span><button class="delete-btn" onclick="deleteExpense(${sec.id},${idx})">×</button></li>`).join("");
+    const card = document.createElement("div");
+    card.className = "section-card";
+    card.innerHTML = `<div class="section-header"><span class="section-title" onclick="openTitleModal(${sec.id})">${sec.title}</span><span class="section-stats ${isOver?'over-limit':''}" onclick="openLimitModal(${sec.id})">${formatNum(total)}${limitText} ₽</span></div><ul class="entries-list">${entriesHtml}</ul><div class="input-group"><input type="text" id="input-${sec.id}" class="expense-input" placeholder="Сумма (напр: 250 или 2000 маме)" onkeydown="if(event.key==='Enter') addExpense(${sec.id})"><button class="add-btn" onclick="addExpense(${sec.id})">+</button></div>`;
+    container.appendChild(card);
+  });
+  document.getElementById("grandTotal").textContent = `${formatNum(grandTotal)} ₽`;
+}
+saveData();
+</script>
+</body>
+</html>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Финансы</title>
