@@ -1,0 +1,40 @@
+name: Build Android APK
+on:
+  push:
+    branches: ["*"]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Unpack ZIP
+        run: unzip -o finance_tracker_android_apk.zip
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build Debug APK
+        run: gradle assembleDebug --no-daemon
+      - name: Copy APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk FinanceTracker.apk
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FinanceTracker-APK
+          path: FinanceTracker.apk
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Финансовый отчет APK (#${{ github.run_number }})
+          body: Нажмите на FinanceTracker.apk ниже, чтобы скачать и установить приложение на Android.
+          files: FinanceTracker.apk
