@@ -1,1 +1,112 @@
-{"name": "Build Android APK", "on": {"push": {"branches": ["*"]}, "workflow_dispatch": {}}, "permissions": {"contents": "write"}, "jobs": {"build": {"runs-on": "ubuntu-latest", "steps": [{"name": "Checkout", "uses": "actions/checkout@v4"}, {"name": "Unpack ZIP if present", "run": "if [ -f finance_tracker_android_apk.zip ]; then unzip -o finance_tracker_android_apk.zip; fi"}, {"name": "Set up JDK 17", "uses": "actions/setup-java@v4", "with": {"distribution": "temurin", "java-version": "17"}}, {"name": "Setup Gradle", "uses": "gradle/actions/setup-gradle@v4", "with": {"gradle-version": "8.7"}}, {"name": "Build Debug APK", "run": "gradle assembleDebug --no-daemon"}, {"name": "Copy APK", "run": "cp app/build/outputs/apk/debug/app-debug.apk FinanceTracker.apk"}, {"name": "Upload APK Artifact", "uses": "actions/upload-artifact@v4", "with": {"name": "FinanceTracker-APK", "path": "FinanceTracker.apk"}}, {"name": "Publish Release", "uses": "softprops/action-gh-release@v2", "with": {"tag_name": "v1.0.${{ github.run_number }}", "name": "Финансовый отчет APK (#${{ github.run_number }})", "body": "Нажмите на FinanceTracker.apk ниже, чтобы сразу скачать и установить приложение на Android.", "files": "FinanceTracker.apk"}}]}}}
+{"name": "Build Android name: Build Android APK
+on:
+  push:
+    branches: [ "*" ]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Create Android Project Files
+        run: |
+          if [ -f finance_tracker_android_apk.zip ]; then unzip -o finance_tracker_android_apk.zip; fi
+          if [ ! -f settings.gradle ]; then
+            mkdir -p app/src/main/java/ru/kirill/financetracker app/src/main/assets
+            cat << 'EOF' > settings.gradle
+          pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
+          dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
+          rootProject.name = "FinanceTracker"
+          include(":app")
+          EOF
+            cat << 'EOF' > build.gradle
+          plugins { id 'com.android.application' version '8.3.2' apply false }
+          EOF
+            cat << 'EOF' > gradle.properties
+          org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          EOF
+            cat << 'EOF' > app/build.gradle
+          plugins { id 'com.android.application' }
+          android {
+              namespace 'ru.kirill.financetracker'
+              compileSdk 34
+              defaultConfig { applicationId "ru.kirill.financetracker"; minSdk 24; targetSdk 34; versionCode 1; versionName "1.0" }
+              buildTypes { debug { minifyEnabled false } }
+              compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+          }
+          EOF
+            cat << 'EOF' > app/src/main/AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.RECORD_AUDIO" />
+              <application android:allowBackup="true" android:label="Финансы" android:supportsRtl="true" android:usesCleartextTraffic="true" android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true" android:configChanges="orientation|screenSize|keyboardHidden" android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+            cat << 'EOF' > app/src/main/java/ru/kirill/financetracker/MainActivity.java
+          package ru.kirill.financetracker;
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.view.Window;
+          import android.webkit.PermissionRequest;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          public class MainActivity extends Activity {
+              private WebView webView;
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  Window w = getWindow();
+                  if (w != null) { w.setStatusBarColor(Color.parseColor("#121212")); w.setNavigationBarColor(Color.parseColor("#121212")); }
+                  webView = new WebView(this);
+                  webView.setBackgroundColor(Color.parseColor("#121212"));
+                  setContentView(webView);
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setAllowFileAccess(true);
+                  webView.setWebViewClient(new WebViewClient());
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onPermissionRequest(final PermissionRequest request) { request.grant(request.getResources()); }
+                  });
+                  webView.loadUrl("file:///android_asset/index.html");
+              }
+          }
+          EOF
+          fi
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+      - name: Build Debug APK
+        run: gradle assembleDebug --no-daemon
+      - name: Copy APK
+        run: cp app/build/outputs/apk/debug/app-debug.apk FinanceTracker.apk
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: "Финансовый отчет APK (#${{ github.run_number }})"
+          body: "Нажмите на FinanceTracker.apk ниже, чтобы сразу скачать и установить приложение на Android."
+          files: FinanceTracker.apkAPK", "on": {"push": {"branches": ["*"]}, "workflow_dispatch": {}}, "permissions": {"contents": "write"}, "jobs": {"build": {"runs-on": "ubuntu-latest", "steps": [{"name": "Checkout", "uses": "actions/checkout@v4"}, {"name": "Unpack ZIP if present", "run": "if [ -f finance_tracker_android_apk.zip ]; then unzip -o finance_tracker_android_apk.zip; fi"}, {"name": "Set up JDK 17", "uses": "actions/setup-java@v4", "with": {"distribution": "temurin", "java-version": "17"}}, {"name": "Setup Gradle", "uses": "gradle/actions/setup-gradle@v4", "with": {"gradle-version": "8.7"}}, {"name": "Build Debug APK", "run": "gradle assembleDebug --no-daemon"}, {"name": "Copy APK", "run": "cp app/build/outputs/apk/debug/app-debug.apk FinanceTracker.apk"}, {"name": "Upload APK Artifact", "uses": "actions/upload-artifact@v4", "with": {"name": "FinanceTracker-APK", "path": "FinanceTracker.apk"}}, {"name": "Publish Release", "uses": "softprops/action-gh-release@v2", "with": {"tag_name": "v1.0.${{ github.run_number }}", "name": "Финансовый отчет APK (#${{ github.run_number }})", "body": "Нажмите на FinanceTracker.apk ниже, чтобы сразу скачать и установить приложение на Android.", "files": "FinanceTracker.apk"}}]}}}
